@@ -1,0 +1,497 @@
+---
+title: "Module-2"
+author: "Sankalp Biswal"
+date: "2023-11-14"
+output: html_document
+---
+## 1.Importing Libraries
+```{r}
+library(pacman)
+library(ggplot2)
+library(tidyverse)
+library(janitor)
+library(lubridate)
+library(gmodels)
+library(plotly)
+library(reshape2)
+library(dplyr)
+library(purrr)
+library(knitr)
+library(kableExtra)
+```
+
+## 2.Importing dataset
+
+* Selecting variables of interest
+```{r}
+property_dataset <- read.csv("fy2023-property-assessment-data.csv")
+
+property_subset <- subset(property_dataset,select = c(CITY,LU,LU_DESC,BLDG_TYPE,LAND_SF,GROSS_AREA,BLDG_VALUE,LAND_VALUE,TOTAL_VALUE,GROSS_TAX,YR_BUILT,YR_REMODEL,ROOF_STRUCTURE,BED_RMS,FULL_BTH,KITCHENS,TT_RMS,RES_FLOOR,OVERALL_COND,HEAT_TYPE,AC_TYPE,PROP_VIEW,NUM_PARKING,FIREPLACES,ZIP_CODE))
+```
+
+## 3. Data Cleaning
+
+* We'll clean the data using `IQR()` and replace the out of bound values by 'NA' and then impute 'NA' values by **Median** so that we can preserve the original sample size.
+
+```{r}
+clean_numeric_columns <- function(x) {
+  # Remove outliers based on IQR
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr_value <- IQR(x, na.rm = TRUE)
+  
+  lower_bound <- q1 - 1.5 * iqr_value
+  upper_bound <- q3 + 1.5 * iqr_value
+  
+  x_outliers_removed <- ifelse(x < lower_bound | x > upper_bound, NA, x)
+  
+  # Impute missing values with the median
+  x_cleaned <- ifelse(is.na(x_outliers_removed), median(x, na.rm = TRUE), x_outliers_removed)
+  
+  return(x_cleaned)
+}
+
+# Clean all numeric columns in the dataset
+property_subset_clean <- property_subset %>%
+  mutate(across(where(is.numeric), clean_numeric_columns))
+
+# Remove rows with any NA values after cleaning
+property_subset_clean <- na.omit(property_subset_clean)
+
+property_subset_clean <- property_subset_clean %>%
+  mutate(CITY = ifelse(CITY == "" | is.na(CITY), "Unknown", CITY))
+
+property_subset_clean <- property_subset_clean %>%
+  mutate(OVERALL_COND = ifelse(OVERALL_COND == "" | is.na(OVERALL_COND), "Unknown", OVERALL_COND))
+
+property_subset_clean <- property_subset_clean %>%
+  mutate(PROP_VIEW = ifelse(PROP_VIEW == "" | is.na(PROP_VIEW), "Unknown", PROP_VIEW))
+
+property_subset_clean <- property_subset_clean %>%
+  mutate(AC_TYPE = ifelse(AC_TYPE == "" | is.na(AC_TYPE), "Unknown", AC_TYPE))
+```
+
+## 4. Tabulations
+### a) Group statistics by City
+
+* Grouping dataset by **cities** and generating statistics like **Mean**,  **sd**, **min**, **max**, and **count**
+
+```{r}
+city_stats <- property_subset_clean %>%
+  group_by(CITY) %>%
+  summarise(across(where(is.numeric), list(
+    mean_value = ~mean(., na.rm = TRUE),
+    sd_value = ~sd(., na.rm = TRUE),
+    min_value = ~min(., na.rm = TRUE),
+    max_value = ~max(., na.rm = TRUE),
+    count = ~sum(!is.na(.))
+  ), .names = "{col}_{fn}"))
+
+kable(city_stats, format = "html",
+      caption = "Grouping Statistics by CITY",
+      align ="cccc",
+     )%>%
+  kable_styling(full_width = FALSE)
+
+```
+
+### b) Group statistics by overall condition of the parcel 
+
+* Grouping dataset by **overall condition** and generating statistics like **Mean**,  **sd**, **min**, **max**, and **count**
+```{r}
+overall_cond_stats <- property_subset_clean %>%
+  group_by(OVERALL_COND) %>%
+  summarise(across(where(is.numeric), list(
+    mean_value = ~mean(., na.rm = TRUE),
+    sd_value = ~sd(., na.rm = TRUE),
+    min_value = ~min(., na.rm = TRUE),
+    max_value = ~max(., na.rm = TRUE),
+    count = ~sum(!is.na(.))
+  ), .names = "{col}_{fn}"))
+
+kable(overall_cond_stats, format = "html",
+      caption = "Grouping Statistics by OVERALL CONDITION",
+      align ="cccc",
+     )%>%
+  kable_styling(full_width = FALSE)
+
+```
+
+### c) Group statistics by Property view
+
+* Grouping dataset by **Property view** and generating statistics like **Mean**,  **sd**, **min**, **max**, and **count**
+```{r}
+prop_view_stats <- property_subset_clean %>%
+  group_by(PROP_VIEW) %>%
+  summarise(across(where(is.numeric), list(
+    mean_value = ~mean(., na.rm = TRUE),
+    sd_value = ~sd(., na.rm = TRUE),
+    min_value = ~min(., na.rm = TRUE),
+    max_value = ~max(., na.rm = TRUE),
+    count = ~sum(!is.na(.))
+  ), .names = "{col}_{fn}"))
+
+kable(prop_view_stats, format = "html",
+      caption = "Grouping Statistics by Property View",
+      align ="cccc",
+     )%>%
+  kable_styling(full_width = FALSE)
+```
+
+### d) Statistics for grouping by AC Type 
+
+* Grouping dataset by **Ac Type** and generating statistics like **Mean**,  **sd**, **min**, **max**, and **count**
+```{r}
+ac_type_stats <- property_subset_clean %>%
+  group_by(AC_TYPE) %>%
+  summarise(across(where(is.numeric), list(
+    mean_value = ~mean(., na.rm = TRUE),
+    sd_value = ~sd(., na.rm = TRUE),
+    min_value = ~min(., na.rm = TRUE),
+    max_value = ~max(., na.rm = TRUE),
+    count = ~sum(!is.na(.))
+  ), .names = "{col}_{fn}"))
+
+kable(ac_type_stats, format = "html",
+      caption = "Grouping Statistics by AC type",
+      align ="cccc",
+     )%>%
+  kable_styling(full_width = FALSE)
+```
+
+### e) Statistics for grouping by LU 
+
+* Grouping dataset by **LU** and generating statistics like **Mean**,  **sd**, **min**, **max**, and **count**
+```{r}
+LU_stats <- property_subset_clean %>%
+  group_by(LU) %>%
+  summarise(across(where(is.numeric), list(
+    mean_value = ~mean(., na.rm = TRUE),
+    sd_value = ~sd(., na.rm = TRUE),
+    min_value = ~min(., na.rm = TRUE),
+    max_value = ~max(., na.rm = TRUE),
+    count = ~sum(!is.na(.))
+  ), .names = "{col}_{fn}"))
+
+kable(LU_stats, format = "html",
+      caption = "Grouping Statistics by LU",
+      align ="cccc",
+     )%>%
+  kable_styling(full_width = FALSE)
+```
+
+### f) Statistics for overall cleaned dataframe
+
+* Generating statistics like **Mean**,  **sd**, **min**, **max**, and **count** for clean dataframe.
+```{r}
+numeric_columns <- c("LAND_SF", "GROSS_AREA", "BLDG_VALUE", "LAND_VALUE", "TOTAL_VALUE", 
+                     "GROSS_TAX", "YR_BUILT", "YR_REMODEL", "BED_RMS", "FULL_BTH",
+                     "KITCHENS", "TT_RMS", "RES_FLOOR", "NUM_PARKING", "FIREPLACES")
+
+# Calculate summary statistics
+summary_df <- map_dfr(numeric_columns, ~ {
+  col_name <- as.symbol(.x)
+  property_subset_clean %>%
+    summarise(
+      variable = .x,
+      mean_value = mean(!!col_name, na.rm = TRUE),
+      min_value = min(!!col_name, na.rm = TRUE),
+      max_value = max(!!col_name, na.rm = TRUE),
+      count = sum(!is.na(!!col_name)),
+      sd_value = sd(!!col_name, na.rm = TRUE)
+    )
+})
+
+summary_df
+```
+
+## 5. Sampling
+
+### a) Creating 5 random samples with replacement using `sample_n()` and calculating descriptive statistics for each sample
+```{r}
+# Number of samples
+num_samples <- 5
+
+# Create a list to store sample summary data frames
+sample_summary_list <- vector("list", length = num_samples)
+
+# Create samples and calculate summary statistics
+set.seed(123)  # for reproducibility
+for (i in seq_len(num_samples)) {
+  sample_data <- property_subset_clean %>%
+  sample_n(size = nrow(property_subset_clean), replace = TRUE)
+  
+  sample_summary <- map_dfr(numeric_columns, ~ {
+    col_name <- as.symbol(.x)
+    sample_data %>%
+      summarise(
+        variable = .x,
+        mean_value = format(mean(!!col_name, na.rm = TRUE),scientific=FALSE),
+        min_value = min(!!col_name, na.rm = TRUE),
+        max_value = max(!!col_name, na.rm = TRUE),
+        count = sum(!is.na(!!col_name)),
+        sd_value = format(sd(!!col_name, na.rm = TRUE),scientific =FALSE)
+      )
+  })
+  
+  sample_summary_list[[i]] <- sample_summary
+}
+
+# Combine the results into a single data frame
+combined_summary_df <- bind_rows(sample_summary_list, .id = "Sample")
+
+```
+
+
+### b) Comparing the **Mean** values of **Gross Tax, Land Value and Land SF** for different samples
+
+```{r}
+# Columns of interest
+columns_of_interest <- c("LAND_VALUE", "LAND_SF", "GROSS_TAX")
+
+# Extract rows related to the columns of interest
+mean_comparison_df <- combined_summary_df %>%
+  filter(variable %in% columns_of_interest)
+
+# Select and arrange relevant columns
+mean_comparison_df <- mean_comparison_df %>%
+  select("Sample", "variable", "mean_value") %>%
+  spread(variable, mean_value)
+
+# Print the mean comparison data frame
+print(mean_comparison_df)
+```
+* Sample 1 has GROSS_TAX of **$6203.31**, LAND_SF of **2697.804**, and LAND_VALUE of **$95,624.71**.
+* Sample 2 has GROSS_TAX of **$6186.348**, LAND_SF of **2688.85**, and LAND_VALUE of **$95,212.91**.
+* Sample 3 has GROSS_TAX of **$6171.558**, LAND_SF of **2684.028**, and LAND_VALUE of **$94,983.86**.
+* Sample 4 has GROSS_TAX of **$6189.36**, LAND_SF of **2693.415**, and LAND_VALUE of **$95,139.83**.
+* Sample 5 has GROSS_TAX of **$6159.283**, LAND_SF of **2686.33**, and LAND_VALUE of **$94,431**.
+
+### c) Comparing the 5 samples with **orginal** data for **Gross tax, Land sf and Land value**
+
+```{r}
+columns_of_interest <- c("LAND_VALUE", "LAND_SF", "GROSS_TAX")
+
+# Extract rows related to the columns of interest from the original dataset summary
+original_summary_df <- summary_df %>%
+  filter(variable %in% columns_of_interest) %>%
+  select(variable, 
+         mean_value_original = mean_value,
+         sd_value_original = sd_value)  # Include standard deviation
+
+# Extract rows related to the columns of interest from the sampled data summary
+sampled_summary_df <- combined_summary_df %>%
+  filter(variable %in% columns_of_interest) %>%
+  select("Sample", variable, 
+         mean_value_sampled = mean_value,
+         sd_value_sampled = sd_value)  # Include standard deviation
+
+# Merge the two summary data frames based on the variable column
+comparison_df <- merge(original_summary_df, sampled_summary_df, by = "variable")
+
+# Print the comparison data frame
+print(comparison_df)
+
+```
+
+### 1.GROSS TAX -
+* The **mean** GROSS_TAX in the original dataset is approximately **$6187.05** with a **standard deviation** of **$4033.92**.
+* Across five samples, the **mean** GROSS_TAX values range from **$6159.28 to $6203.31**, with corresponding **standard deviations** ranging from **$4016.11 to $4041.39**.
+
+### 2.LAND_SF - 
+* The **mean** LAND_SF in the original dataset is approximately **2689.26** with a **standard deviation** of **2162.20**.
+* Across five samples, the **mean** LAND_SF values range from **2684.03 to 2697.80**, with corresponding **standard deviations** ranging from **2159.37 to 2165.25**.
+
+### 3.LAND_VALUE - 
+* The **mean** LAND_VALUE in the original dataset is approximately **$95,048.67** with a **standard deviation** of **$129,445.63**.
+* Across five samples, the **mean** LAND_VALUE values range from **$94,431 to $95,624.71**, with corresponding **standard deviations** ranging from **$128,915.70 to $129,719.30**.
+
+## 6. Visualisations
+
+### a) Jitter Chart for Land value vs Property view
+
+### Q. When is a jitter chart used?
+* Jitter charts are useful when you have categorical or discrete data, and there is overlap among data points. They help avoid overplotting and provide a clearer view of the data distribution.
+
+```{r}
+jitter_prop_view_landvalue <- property_subset_clean %>%
+  filter(PROP_VIEW != "Unknown") %>%
+  select(LAND_VALUE, PROP_VIEW)
+
+ggplot(jitter_prop_view_landvalue, aes(x = PROP_VIEW, y = LAND_VALUE)) +
+  geom_jitter(width = 0.2, height = 0, color = "blue", size = 0.25) +
+  labs(title = "Jitter Plot: LAND_VALUE vs. PROPERTY VIEW",
+       x = "PROPERTY VIEW", y = "LAND_VALUE")+
+    scale_y_continuous(labels = scales::comma) 
+# Format y-axis labels with commas
+
+```
+* We plotted jitter chart using `ggplot()` and observed that our dataset consists of high values of **Average** rated properties followed by **Fair** and **Good**
+
+
+### b) Scatter Plots
+
+* We've used `par()` to display two scatter plots side-by-side and `plot()` to create the graphs
+```{r}
+
+# Set up the layout for multiple plots
+par(mfrow = c(1, 2))  # 1x2 grid for multiple plots
+
+
+# Change axis labels to non-scientific notation
+options(scipen = 999)
+
+# Scatter Plot: LAND_VALUE vs. LAND_SF
+plot(property_dataset$LAND_SF, property_dataset$LAND_VALUE,
+     main = "LAND_VALUE vs. LAND_SF",
+     xlab = "LAND_SF", ylab = "LAND_VALUE", col = "blue",
+     pch = 1,      # Change point type
+     cex = 0.5)     # Change point size
+
+
+# Scatter Plot: GROSS_TAX vs. GROSS_AREA
+plot(property_dataset$GROSS_AREA, property_dataset$GROSS_TAX,
+     main = "GROSS_TAX vs. GROSS_AREA",
+     xlab = "GROSS_AREA", ylab = "GROSS_TAX", col = "blue",
+     pch= 1,
+     cex = 0.5
+     )
+
+options(scipen = 0)
+
+# Reset the layout to default
+par(mfrow = c(1, 1))
+
+```
+* The scatter plot on the left shows relation between Land_value and Land sf. We can notice outliers which are distant points away from main distribution.
+* The scatter plot on the right shows relation between Gross tax and Gross area and a slight positive correaltion can be observed between the two variables. We can observe outliers which are distant from the main distribution.
+
+### c) Boxplots
+
+### Q. How can you use boxplots to detect outliers?
+
+* In a boxplot, the box represents the interquartile range (IQR), which is the range between the first quartile (Q1) and   the third quartile (Q3).
+* The median is represented by a line inside the box.
+* "Whiskers" extend from the box to the minimum and maximum values within a certain range.
+* Points beyond the whiskers are considered potential outliers.
+* `abline()` is used commonly to detect or hihglight outliers by drawing a line at 1.5 times the IQR from the quartiles.
+
+
+
+#### i) BOXPLOT for building value
+
+```{r}
+
+boxplot(property_subset_clean$BLDG_VALUE,
+        main = "Boxplot: BLDG_VALUE",
+        col = "lightblue",
+        border = "darkblue",
+        ylab = "BLDG_VALUE")
+
+# Calculate the threshold for outliers (you can adjust the multiplier as needed)
+threshold <- 1.5  # Adjust this value based on your requirements
+
+# Add a horizontal line to the boxplot at the threshold with a red dashed line
+abline(h = boxplot.stats(property_subset_clean$BLDG_VALUE)$out, col = "red", lty = 2, lwd = 0.5)
+
+```
+
+* The boxplot helps visually summarize and compare the central tendency, spread, and potential outliers in **Building values**. The red line indicates outliers.
+
+
+
+#### ii) BOXPLOT for LAND VALUE by LU
+
+* This plot allows us to visualize the distribution of land values within different categories of the LU variable
+
+```{r}
+options(scipen = 999)
+
+
+# Adjust the margins to create more space for y-axis labels
+par(mar = c(4, 5, 3, 2) + 0.5)  # c(bottom, left, top, right)
+
+# Create the boxplot
+boxplot(LAND_VALUE ~ LU, data = property_subset_clean,horizontal = TRUE,
+        main = "Boxplot: LAND_VALUE by LU",
+        col = "blue", ylab = "LU", las = 1)
+
+lower_threshold <- 1.5  # Adjust this value based on your lower bound requirements
+upper_threshold <- 10  # Adjust this value based on your upper bound requirements
+
+abline(v = lower_threshold, col = "red", lty = 2)
+abline(v = upper_threshold, col = "green", lty = 2)
+
+
+# Reset the margins to default after creating the plot
+par(mar = c(5, 4, 4, 2) + 0.1)  # Reset to default values
+
+options(scipen = 0)
+
+```
+* The boxplot above shows the distribution of Land values within LU's. The values beyond the whiskers are **potential outliers**. 
+* Majority of the LU's have right skew since their right whiskers are longer.
+
+#### iii) BOXPLOT for LAND VALUE by AC Type
+
+* This plot allows us to visualize the distribution of land values within different categories of the AC_TYPE variable
+* Plotted graph using `boxplot()` and also used `abline()` for outlier detection.
+```{r}
+options(scipen = 999)
+
+boxplot(LAND_VALUE ~ AC_TYPE, data = property_subset_clean,
+        main = "Boxplot: LAND_VALUE by AC_TYPE",
+        col = "lightgreen",
+        border = "darkgreen",
+        xlab = "AC_TYPE",
+        ylab = "LAND_VALUE")
+
+# Calculate the threshold for outliers (you can adjust the multiplier as needed)
+threshold <- 1.5  # Adjust this value based on your requirements
+
+# Add a horizontal line to the boxplot at the threshold
+abline(h = boxplot.stats(property_subset_clean$LAND_VALUE)$out, col = "red", lty = 2, lwd = 0.5)
+
+options(scipen = 0)
+
+```
+* The boxplot helps visually summarize and compare the central tendency, spread, and potential outliers in land values for each "AC_TYPE" category.
+* The Land value within **Central AC** is more skewed than **Ductless AC**.
+
+
+#### iv) BOXPLOT for Gross Area by Heat Type
+
+* This plot allows us to visualize the distribution of gross area within different categories of the HEAT_TYPE variable
+
+
+```{r}
+
+# Adjust the margins to create more space for y-axis labels
+par(mar = c(4, 8, 3, 2) + 0.5)  # c(bottom, left, top, right)
+
+boxplot(GROSS_AREA ~ HEAT_TYPE, data = property_subset_clean,horizontal = TRUE,
+        main = "Boxplot: GROSS_AREA by HEAT_TYPE",
+        col = "lightcoral",
+        border = "darkred",
+        xlab = "GROSS_AREA",
+        ylab = "",
+        names.arg = c("Electric", "Forced", "Label3", "Label4"),  # Replace with your actual labels
+        las = 2)  # Rotate x-axis labels at a 45-degree angle
+
+# Reset the margins to default after creating the plot
+par(mar = c(5, 4, 4, 2) + 0.1)  # Reset to default values
+```
+* The boxplot helps visually summarize and compare the central tendency, spread, and potential outliers in **Gross area** for each **Heat_Type** category.
+
+
+
+
+
+
+
+
+
+
+
+
+
