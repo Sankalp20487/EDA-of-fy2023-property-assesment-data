@@ -1,0 +1,363 @@
+---
+title: "Module1-R Practice by Sankalp Biswal"
+output: html_document
+date: "2023-11-06"
+---
+
+# Module 1
+
+## 1.Importing Libraries
+```{r}
+library(pacman)
+library(ggplot2)
+library(tidyverse)
+library(janitor)
+library(lubridate)
+library(gmodels)
+library(plotly)
+library(reshape2)
+```
+## 2.Importing dataset
+
+```{r}
+property_dataset <- read.csv("fy2023-property-assessment-data.csv")
+
+```
+
+### a) Creating a subset of interesting variables
+
+* We've used 16 variables out of the total 60 which are - CITY,ZIP_CODE,LU,LAND_SF,LAND_VALUE,TOTAL_VALUE,YR_BUILT,YR_REMODEL,ROOF_STRUCTURE,BED_RMS,FULL_BTH,KITCHENS,TT_RMS,HEAT_TYPE,AC_TYPE and PROP_VIEW.
+
+```{r}
+property_subset <- subset(property_dataset,select = c(CITY,ZIP_CODE,LU,LAND_SF,LAND_VALUE,TOTAL_VALUE,YR_BUILT,YR_REMODEL,ROOF_STRUCTURE,BED_RMS,FULL_BTH,KITCHENS,TT_RMS,HEAT_TYPE,AC_TYPE,PROP_VIEW))
+head(property_subset,10)
+```
+
+### b) Checking data-type of variables
+
+```{r}
+summary(property_subset)
+```
+* All the variables have the correct data-type. We'll treat the **outliers** and **NA** values as we visualise each attribute.
+
+## 3.Visualisations
+
+### a) Histogram for distribution of Land Values
+
+* We cleaned the data using `IQR()` and also removed **values == 0**
+
+```{r}
+iqr_land_value <- IQR(property_subset$LAND_VALUE)
+
+# Define lower and upper bounds for outliers
+lower_bound <- quantile(property_subset$LAND_VALUE)[2] - 1.5 * iqr_land_value
+upper_bound <- quantile(property_subset$LAND_VALUE)[4] + 1.5 * iqr_land_value
+
+# Remove outliers from LAND_VALUE
+data_cleaned <- property_subset %>%
+  filter(LAND_VALUE >= lower_bound, LAND_VALUE <= upper_bound)
+
+data_cleaned <- data_cleaned %>%
+  filter(LAND_VALUE != 0)
+
+land_value <- subset(data_cleaned, select = LAND_VALUE)
+
+gg_land_value <- ggplot(land_value, aes(x = LAND_VALUE)) +
+  geom_histogram(fill = "blue", color = "black", binwidth=100000) +
+  labs(
+    title = "Histogram of Land Values",
+    x = "Land Values in Dollars",
+    y = "Frequency"
+  ) +
+  scale_x_continuous(labels = scales::comma) +  # Format x-axis labels with commas
+  scale_y_continuous(labels = scales::comma)     # Format y-axis labels with commas
+
+plotly_hist <- ggplotly(gg_land_value)
+plotly_hist
+```
+
+
+* We've plotted a histogram using `ggplot()` and `plotly()` and found that maximum **Land Value** is in the range  
+**$150,000-$250,000** with a count of **37,284**.
+
+### b) Histogram for disrtibution of houses among different cities
+
+```{r}
+# Creating a histogram for number of houses per city using ggplot
+gg_hist <-ggplot(property_subset, aes(x = reorder(CITY, -table(CITY)[CITY]))) +
+  geom_bar(fill = "blue", color = "black") +
+  labs(
+    title = "Number of houses per city ",
+    x = "City",
+    y = "Frequency of houses"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#Using plotly for creating an interactive graph
+
+plotly_hist <- ggplotly(gg_hist)
+plotly_hist
+```
+* The above histogram shows us that our data set has maximum number of houses from **Boston** with a count of **47,104** . We've used `ggplot()` and `plotly()`.
+
+### c) Average land value per sqft 
+
+* We'll calculate the average land value per sqft.
+```{r}
+
+average_land_value_per_sqft <- property_subset %>%
+  group_by(CITY) %>%
+  summarize(Avg_Land_Value_per_Sqft = sum(LAND_VALUE) / sum(LAND_SF, na.rm = TRUE))
+
+#Using table() to check for blank values
+
+table(property_subset$CITY)
+```
+* We'll remove these 5 blank values using `subset()`.
+
+```{r}
+average_land_value_per_sqft <- filter(average_land_value_per_sqft, CITY!="")
+```
+
+
+#### Bar chart for average land value per sqft by city
+```{r}
+#Using ggplot to plot bar graph for Average land value per sq ft.
+ggplot(average_land_value_per_sqft, aes(x = reorder(CITY,-Avg_Land_Value_per_Sqft), y = Avg_Land_Value_per_Sqft)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  labs(title = "Average Land Value Per Sqft by City", x = "City", y = "Average Land Value Per Sqft")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ 
+  scale_y_continuous(labels = scales::dollar_format(prefix = "$"),limits = c(0,200))+
+  geom_text(aes(label = round(Avg_Land_Value_per_Sqft, 2), vjust = -0.5), size = 3)
+  
+```
+
+* We've plotted average land value per sqft using `ggplot()` and found out that **Boston** has highest value at **$169.56 per sqft**
+
+### d) Most common roof structure used among different houses
+
+
+```{r}
+table(property_subset$ROOF_STRUCTURE)
+```
+
+* We see that there are lot of blank values, we'll remove these blank values 
+
+```{r}
+# Removing blank values
+roof_structure_cleaned <- property_subset%>%filter(ROOF_STRUCTURE != "")
+
+```
+
+#### Bar Chart for distribution of Roof Structure
+
+```{r}
+# Plotting Bar chart using ggplot
+
+ggplot(roof_structure_cleaned, aes(x = ROOF_STRUCTURE)) +
+  geom_bar(fill = "lightblue") +
+  labs(title = "Distribution of Roof Structure", x = "Roof Structure", y = "Count") + geom_text(
+  aes(label = after_stat(count)), 
+  stat = "count", 
+  vjust = -0.5
+)+ theme(axis.text.x = element_text(angle = 45, hjust = 1))+ 
+  scale_y_continuous(limits = c(0,80000))
+```
+* We've plotted a bar chart using `ggplot()` and observed that most used roof structure is **F-Flat Roof structure** followed  by **G- Gable Roof structure** .
+
+### e) Distribution of number of houses built per year
+
+* Cleaning the YR_BUILT column
+
+```{r}
+year_built <- subset(property_subset, select =YR_BUILT)
+
+# Omitting NA values
+
+year_built <- na.omit(year_built)
+
+# Few values in this YR_BUILT column are 5 digit, so we filter them out
+
+year_built <- filter(year_built, YR_BUILT <3000)
+
+```
+
+#### Histogram for year the houses were built
+
+```{r}
+gg_yr_built <- ggplot(data = year_built, aes(x = YR_BUILT)) +
+  geom_histogram(binwidth = 5
+                 , fill = "lightblue", color = "black") +
+  labs(title = "Distribution of number of house built by year", x = "Year Built", y = "Number of houses")+
+  scale_x_continuous(limits = c(1600, 2050
+                                ), breaks = seq(1600,2050, by=50)  )+
+  scale_y_continuous(limits = c(0,30000))
+plotly_hist <- ggplotly(gg_yr_built)
+plotly_hist
+```
+ 
+ * We've plotted a histogram using `plotly()` to visualise number of houses built in different years. We observe that maximum houses were built in the year **1990** with a count of **28,253**.
+ 
+### f) Distribution of number of houses remodeled by year
+
+```{r}
+year_remodel <- subset(property_subset, select =YR_REMODEL)
+
+# Omitting NA values
+
+year_remodel <- na.omit(year_remodel)
+
+# Few values in this YR_BUILT column are 5 digit, so we filter them out
+
+year_remodel <- filter(year_remodel, YR_REMODEL <2030 & YR_REMODEL >1500)
+
+```
+
+#### Histogram for year the houses were remodeled
+
+
+```{r}
+gg_yr_remodel <- ggplot(year_remodel, aes(x = YR_REMODEL)) +
+  geom_histogram(binwidth = 5
+                 , fill = "lightblue", color = "black") +
+  labs(title = "Distribution of Year Remodeled", x = "Year Remodeled", y = "Frequency")+
+  scale_x_continuous(limits = c(1900, 2050
+                                ), breaks = seq(1900,2050, by=10)  )+
+  scale_y_continuous(limits = c(0,30000))
+plotly_hist <- ggplotly(gg_yr_remodel)
+plotly_hist
+```
+
+* We've plotted a histogram using `ggplot()` and `plotly()` and observed that maximum number of houses were remodeled in the year **2015** with a count of **13556**.
+
+
+
+
+### g) Scatter Plot of Land Area vs Land Value
+
+* We have filtered out very high values from **LAND_SF** using `subset()` since it may affect our visualisation.
+
+```{r}
+#Removing unusually high values and zero values from the LAND_SF and LAND_VALUE
+
+land_area <- subset(property_dataset, LAND_SF !=0 & LAND_VALUE != 0 & LAND_SF <=95000000 & LAND_VALUE <= 400000000)
+
+#Calculating correlation coefficient to understand the strength of relationship between x axis and y axis
+correlation_coefficient <- cor(land_area$LAND_SF, land_area$LAND_VALUE)
+
+# Plotting Scatter plot using ggplot
+ggplot(land_area, aes(x = LAND_SF, y = LAND_VALUE)) +
+  geom_point(size = 1, color = "blue") +
+  labs(
+    title = "Scatter Plot of Land Area vs Land Value",
+    x = "Land Area (Sq. Feet)",
+    y = "Land Value"
+  ) +
+  theme_minimal()+ scale_x_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma)+geom_text(aes(x = 1000000, y = 350000000, label = paste("Correlation =", round(correlation_coefficient, 2))))
+```
+
+* We have plotted a scatter plot for **Land Area vs Land Value** using `ggplot()` and have obtained a **correlation coefficient = 0.44** which indicates moderate positive linear relationship between the two variables. This also indicates that price of land may depend on other variables apart from **land area**.
+
+### h) Distribution of different AC-types per city
+
+* Using `CrossTable()` to visualise relation between Cities and AC types
+
+```{r}
+ac_type <- gmodels::CrossTable(property_subset$CITY, property_subset$AC_TYPE,prop.t = FALSE, prop.c = FALSE, prop.chisq = FALSE)
+
+# We have reshaped the data into a long format using `melt()` to plot stacked bar graph.
+ac_type_long <- melt(ac_type, id.vars ="AC_TYPE", value.name = "Count")
+
+# Converting Count column to integer for better readability of the stacked bar chart
+ac_type_long$Count <- as.integer(ac_type_long$Count)
+
+# Filtering out blank values
+
+ac_type_long <- filter(ac_type_long, y !="" & x !="")
+
+
+```
+
+#### Stacked Bar Chart for different AC types per city
+
+```{r}
+#Using ggplot to plot stacked bar graph
+gg_ac_type <- ggplot(ac_type_long, aes(x = x, y = Count, fill = y)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Ac type counts by City", x = "City", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_y_continuous(
+    breaks = seq(0,30000, by=4000),
+    limits = c(0,45000))
+# Converting ggplot to plotly
+plotly_plot <- ggplotly(gg_ac_type)
+
+
+# Show the interactive plotly plot
+plotly_plot
+```
+
+* We've plotted a stacked bar chart using `ggplot()` and `plotyly()` and observed that maximum houses have **C - Central AC** and **Boston** has highest count of **C - Central AC** with a figure of **19,368**. It can also be observed that **D- Ductless AC** is not very common among the cities in our dataset.
+
+### i) Distribution of heat types per city
+
+* Using `CrossTable()` to visualise relation between Cities and Heat types
+
+```{r}
+heat_type <- gmodels::CrossTable(property_subset$CITY, property_subset$HEAT_TYPE,prop.t = FALSE, prop.c = FALSE, prop.chisq = FALSE)
+
+# We have reshaped the data into a long format using `melt()` to plot stacked bar graph.
+heat_type_long <- melt(heat_type, id.vars ="HEAT_TYPE", value.name = "Count")
+
+# Converting Count column to integer for better readability of the stacked bar chart
+heat_type_long$Count <- as.integer(heat_type_long$Count)
+
+# Filtering out blank values
+
+heat_type_long <- filter(heat_type_long, y !="" & x !="")
+```
+#### Stacked Bar Chart for different Heat types per city
+
+```{r}
+#Using ggplot to plot stacked bar graph
+gg_heat_type <- ggplot(heat_type_long, aes(x = x, y = Count, fill = y)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Heat type counts by City", x = "City", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_y_continuous(
+    breaks = seq(0,40000, by=5000),
+    limits = c(0,45000))
+# Converting ggplot to plotly
+plotly_plot <- ggplotly(gg_heat_type)
+
+
+# Show the interactive plotly plot
+plotly_plot
+```
+
+* We've plotted a stacked bar chart using `ggplot()` and `plotyly()` and observed that most common heating types are  **F - Forced Hot Air** and **W - Ht Water/Steam**.
+
+# Module 2
+
+
+```{r}
+install.packages("psych")
+library(psych)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
